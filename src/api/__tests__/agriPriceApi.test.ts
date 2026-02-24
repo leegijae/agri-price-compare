@@ -34,25 +34,26 @@ describe('agriPriceApi - fetchAuctionPrices', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('ERROR-335 샘플 제한 응답이면 빈 배열을 반환한다', async () => {
-    const errorXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  it('ERROR-335 샘플 제한 응답이면 예외를 throw 한다', async () => {
+  const errorXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <result>
   <code>ERROR-335</code>
   <message>샘플데이터(샘플키:sample)는 한번에 최대 5건을 넘을 수 없습니다.</message>
 </result>`;
 
-    mockedAxios.get.mockResolvedValueOnce({ data: errorXml } as any);
+  mockedAxios.get.mockResolvedValueOnce({ data: errorXml } as any);
 
-    const result = await fetchAuctionPrices({
+  await expect(
+    fetchAuctionPrices({
       date: '20260224',
       marketName: '서울강서도매시장',
       startIndex: 1,
-      endIndex: 50, // 샘플키 제한 초과 가정
-    });
-
-    // 현재 구현 기준: row가 없으므로 [] 반환
-    expect(result).toEqual([]);
-  });
+      endIndex: 50,
+    })
+  ).rejects.toThrow(
+    '샘플데이터(샘플키:sample)는 한번에 최대 5건을 넘을 수 없습니다.'
+  );
+});
 
   it('정상 row XML을 AuctionPriceRow로 매핑한다', async () => {
     const rowsXml = `<?xml version="1.0" encoding="UTF-8"?>
