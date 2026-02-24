@@ -13,6 +13,9 @@ npm test
 npm run lint 
 
 ```
-
+``` powersell
+cd proxy-server
+node server.js
+```
 ## 기획문서
 https://www.notion.so/31198c30a2b38024b56efc776b8da17a?source=copy_link

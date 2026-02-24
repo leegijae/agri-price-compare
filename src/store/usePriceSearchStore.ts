@@ -58,7 +58,13 @@ export const usePriceSearchStore = create<State>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const items = await fetchAuctionPrices({ date, marketName, productName });
+      const items = await fetchAuctionPrices({
+  date,
+  marketName,
+  productName,
+  startIndex: 1,
+  endIndex: 5, // 샘플 API 제한 대응
+});
       set({
         items: sortAuctionItems(items, sortType),
         loading: false,
