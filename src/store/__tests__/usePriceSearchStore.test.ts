@@ -97,6 +97,8 @@ describe('usePriceSearchStore', () => {
       date: '20151120',
       marketName: '서울강서도매시장',
       productName: '',
+      startIndex: 1,
+  endIndex: 5,
     });
 
     expect(state.loading).toBe(false);
