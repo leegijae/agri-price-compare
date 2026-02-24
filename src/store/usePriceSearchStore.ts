@@ -64,10 +64,11 @@ export const usePriceSearchStore = create<State>((set, get) => ({
         loading: false,
       });
    } catch (e: any) {
+  console.error('[STORE] search failed:', e);
   set({
     loading: false,
-    error: e?.message || '데이터 조회 중 오류가 발생했습니다. 네트워크/API 상태를 확인해주세요.',
+    error: '데이터 조회 중 오류가 발생했습니다. 네트워크/API 상태를 확인해주세요.',
   });
-    }
+}
   },
 }));
