@@ -2,7 +2,7 @@ import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import type { AuctionPriceRow, SearchParams } from '@/src/types/agriPrice';
 
-const BASE_URL = 'http://211.237.50.150:7080/openapi/sample/xml';
+const BASE_URL = 'http://localhost:4000/api';
 const SERVICE_NAME = 'Grid_20151127000000000313_1';
 
 const xmlParser = new XMLParser({
@@ -29,15 +29,43 @@ function toStr(value: unknown): string {
 
 
 function extractRowsFromParsedXml(parsed: any): any[] {
+  // 후보 루트들을 순서대로 탐색
+  const candidates = [
+    parsed?.[SERVICE_NAME], // 기존 예상 구조
+    parsed?.result,         // 현재 실제 로그 구조
+    parsed?.response,       // 다른 공공 API에서 자주 나오는 구조
+    parsed,                 // 최후 fallback
+  ];
 
-  const root = parsed?.[SERVICE_NAME] ?? parsed;
+  for (const root of candidates) {
+    if (!root) continue;
 
-  let rows = root?.row ?? root?.rows ?? [];
-  if (!Array.isArray(rows)) {
-    rows = rows ? [rows] : [];
+    // 1) 바로 row가 있는 경우
+    let rows = root?.row ?? root?.rows;
+
+    // 2) result 내부에 row가 한 단계 더 들어간 경우 대비
+    if (!rows && root?.RESULT) {
+      rows = root.RESULT?.row ?? root.RESULT?.rows;
+    }
+
+    // 3) 배열/단일객체 모두 처리
+    if (rows) {
+      if (Array.isArray(rows)) return rows;
+      return [rows];
+    }
+
+    // 4) root 내부 하위 키를 순회하면서 row/rows 찾기 (추가 안전장치)
+    for (const key of Object.keys(root)) {
+      const child = root[key];
+      const nestedRows = child?.row ?? child?.rows;
+      if (nestedRows) {
+        if (Array.isArray(nestedRows)) return nestedRows;
+        return [nestedRows];
+      }
+    }
   }
 
-  return rows;
+  return [];
 }
 
 function mapRow(raw: any): AuctionPriceRow {
@@ -69,7 +97,7 @@ export async function fetchAuctionPrices(params: SearchParams): Promise<AuctionP
     marketName,
     productName,
     startIndex = 1,
-    endIndex = 50,
+    endIndex = 5,
   } = params;
 
   // [로그 1] 요청 파라미터 확인
@@ -81,16 +109,17 @@ export async function fetchAuctionPrices(params: SearchParams): Promise<AuctionP
     endIndex,
   });
 
-  const url = `${BASE_URL}/${SERVICE_NAME}/${startIndex}/${endIndex}`;
+  const url = `${BASE_URL}/agri-price`;
 
   const response = await axios.get<string>(url, {
-    params: {
-      DELNG_DE: date,
-      WHSAL_MRKT_NM: marketName,
-    },
-    responseType: 'text',
-    transformRequest: [(data, headers) => data],
-  });
+  params: {
+    DELNG_DE: date,
+    WHSAL_MRKT_NM: marketName,
+    startIndex,
+    endIndex,
+  },
+  responseType: 'text',
+});
 
   // [로그 2] 원본 XML 응답 앞부분 확인 (너무 길어서 일부만)
   console.log(
@@ -99,6 +128,15 @@ export async function fetchAuctionPrices(params: SearchParams): Promise<AuctionP
   );
 
   const parsed = xmlParser.parse(response.data);
+
+  const apiErrorCode = parsed?.result?.code;
+const apiErrorMessage = parsed?.result?.message;
+
+if (apiErrorCode && apiErrorCode !== 'INFO-000') {
+  throw new Error(apiErrorMessage || `API 오류: ${apiErrorCode}`);
+}
+
+  console.log('[API] parsed.result keys:', parsed?.result ? Object.keys(parsed.result) : 'no result'); // 추후 삭제
 
   // [로그 3] 파싱된 최상위 키 확인 (응답 구조 확인용)
   console.log('[API] parsed xml keys:', Object.keys(parsed || {}));

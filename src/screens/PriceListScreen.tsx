@@ -1,6 +1,6 @@
 import React from 'react';
 import { FlatList, Text, View } from 'react-native';
-import { usePriceSearchStore } from '@/src/store/usePriceSearchStore';
+import { usePriceSearchStore } from '../store/usePriceSearchStore';
 
 function PriceCard({ item }: { item: any }) {
   return (
@@ -45,11 +45,17 @@ export default function PriceListScreen() {
   }
 
   return (
-    <FlatList
-      data={items}
-      keyExtractor={(item, index) => `${item.rowNum}-${item.productCode ?? ''}-${index}`}
-      renderItem={({ item }) => <PriceCard item={item} />}
-      contentContainerStyle={{ paddingVertical: 12 }}
-    />
+    <View style={{ flex: 1 }}>
+      <Text style={{ paddingHorizontal: 16, paddingVertical: 8, fontWeight: '600' }}>
+        조회 결과 {items.length}건
+      </Text>
+
+      <FlatList
+        data={items}
+        keyExtractor={(item, index) => `${item.rowNum}-${item.productCode ?? ''}-${index}`}
+        renderItem={({ item }) => <PriceCard item={item} />}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+    </View>
   );
 }
