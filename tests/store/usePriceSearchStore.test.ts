@@ -1,4 +1,4 @@
-import { usePriceSearchStore } from '../usePriceSearchStore';
+import { usePriceSearchStore } from '@/src/store/usePriceSearchStore';
 import { fetchAuctionPrices } from '@/src/api/agriPriceApi';
 import type { AuctionPriceRow } from '@/src/types/agriPrice';
 

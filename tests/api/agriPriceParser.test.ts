@@ -1,15 +1,16 @@
+import type { AuctionPriceRow } from '@/src/types/agriPrice';
 import {
-  SERVICE_NAME,
-  extractApiResultInfo,
-  extractRowsFromParsedXml,
-  mapRow,
   toNumber,
   toOptionalNumber,
   toStr,
+  extractApiResultInfo,
+  extractRowsFromParsedXml,
+  mapRow,
   filterRowsByProductName,
-} from '../agriPriceApi';
-import type { AuctionPriceRow } from '@/src/types/agriPrice';
+} from '@/src/api/agriPriceApi';
 
+// 테스트 전용 상수 (소스에서 export 안 하므로 로컬 선언)
+const SERVICE_NAME = 'Grid_20151127000000000313_1';
 describe('agriPrice parser pure functions', () => {
   describe('toNumber / toOptionalNumber / toStr', () => {
     it('toNumber는 콤마 포함 숫자 문자열을 숫자로 변환한다', () => {

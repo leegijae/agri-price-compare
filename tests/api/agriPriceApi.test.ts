@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { fetchAuctionPrices } from '../agriPriceApi';
-
+import { fetchAuctionPrices } from '@/src/api/agriPriceApi';
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
+export const SERVICE_NAME = 'Grid_20151127000000000313_1';
 
 describe('agriPriceApi - fetchAuctionPrices', () => {
   beforeEach(() => {

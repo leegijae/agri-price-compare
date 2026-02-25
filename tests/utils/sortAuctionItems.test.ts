@@ -1,5 +1,5 @@
-import { sortAuctionItems } from '../sortAuctionItems';
-import type { AuctionPriceRow } from '../../types/agriPrice';
+import { sortAuctionItems } from '@/src/utils/sortAuctionItems';
+import type { AuctionPriceRow } from '@/src/types/agriPrice';
 
 const mockItems: AuctionPriceRow[] = [
   {
