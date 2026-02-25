@@ -38,25 +38,55 @@ function asArray<T>(value: T | T[] | undefined | null): T[] {
  * - JSON 신형: response.header.resultCode / resultMsg
  */
 export function extractApiResultInfo(parsed: any): { code?: string; message?: string } {
-  const root =
-    parsed?.result ??
-    parsed?.response?.header ??
-    parsed?.header;
+  // 다양한 응답 구조 후보 (JSON + XML 파싱 객체)
+  const candidates = [
+    parsed?.result,
+    parsed?.RESULT,
+    parsed?.response?.header,
+    parsed?.response?.HEADER,
+    parsed?.header,
+    parsed?.HEADER,
+  ];
 
-  if (!root) return {};
+  // 최상위 임의 루트 아래 result/RESULT가 있는 경우도 탐색
+  if (parsed && typeof parsed === 'object') {
+    for (const v of Object.values(parsed)) {
+      if (!v || typeof v !== 'object') continue;
+      candidates.push((v as any).result);
+      candidates.push((v as any).RESULT);
+      candidates.push((v as any).header);
+      candidates.push((v as any).HEADER);
+    }
+  }
 
-  const code =
-    toStr(root?.result_Code) ||
-    toStr(root?.resultCode);
+  for (const root of candidates) {
+    if (!root || typeof root !== 'object') continue;
 
-  const message =
-    toStr(root?.result_Msg) ||
-    toStr(root?.resultMsg);
+    const code =
+      toStr((root as any).result_Code) ||
+      toStr((root as any).RESULT_CODE) ||
+      toStr((root as any).resultCode) ||
+      toStr((root as any).RESULTCODE) ||
+      toStr((root as any).code) ||
+      toStr((root as any).CODE);
 
-  return {
-    code: code || undefined,
-    message: message || undefined,
-  };
+    const message =
+      toStr((root as any).result_Msg) ||
+      toStr((root as any).RESULT_MSG) ||
+      toStr((root as any).resultMsg) ||
+      toStr((root as any).RESULTMSG) ||
+      toStr((root as any).message) ||
+      toStr((root as any).MESSAGE);
+
+    if (code || message) {
+      return {
+        code: code || undefined,
+        message: message || undefined,
+      };
+    }
+  }
+
+  return {};
 }
 
 /**
@@ -98,41 +128,38 @@ export function extractRowsFromParsedXml(parsed: any): any[] {
  * 신형 JSON(katRealTime2) + 구형 XML 테스트 필드 모두 대응
  */
 export function mapRow(raw: any): AuctionPriceRow {
-  // 신형 JSON 단위 정보
   const unitQty = toOptionalNumber(raw?.unit_qty ?? raw?.UNIT_QTY);
   const unitNm = toStr(raw?.unit_nm ?? raw?.UNIT_NM);
   const pkgNm = toStr(raw?.pkg_nm ?? raw?.PKG_NM);
 
-  // 구형 XML에서는 DELNGBUNDLE_QY 같은 필드가 단위 역할을 할 수 있음
   const legacyUnit = toStr(raw?.DELNGBUNDLE_QY);
 
   return {
-    // 구형 XML: ROW_NUM, 신형 JSON: auctn_seq
     rowNum: toNumber(raw?.ROW_NUM ?? raw?.auctn_seq),
 
-    // 날짜/시간
     tradeDate: toStr(raw?.DELNG_DE ?? raw?.trd_clcln_ymd),
     bidTime: toStr(raw?.SCSBDE ?? raw?.scsbd_dt) || undefined,
 
-    // 시장
     marketCode: toStr(raw?.WHSAL_MRKT_CD ?? raw?.whsl_mrkt_cd) || undefined,
     marketName: toStr(raw?.WHSAL_MRKT_NM ?? raw?.whsl_mrkt_nm),
 
-    // 법인
     corpCode: toStr(raw?.INSTT_NEW_NM_CD ?? raw?.corp_cd) || undefined,
     corpName: toStr(raw?.INSTT_NEW_NM ?? raw?.corp_nm) || undefined,
 
-    // 품목 계층
-    categoryCode: toStr(raw?.STD_PRDLST_CODE ?? raw?.gds_lclsf_cd) || undefined,
-    categoryName: toStr(raw?.STD_PRDLST_NM ?? raw?.gds_lclsf_nm) || undefined,
+    // ✅ category/product 필드 fallback 확대
+    categoryCode: toStr(raw?.STD_PRDLST_CODE ?? raw?.PRDLST_CD ?? raw?.gds_lclsf_cd) || undefined,
+    categoryName: toStr(raw?.STD_PRDLST_NM ?? raw?.PRDLST_NM ?? raw?.gds_lclsf_nm) || undefined,
 
-    productCode: toStr(raw?.STD_SPCIES_CODE ?? raw?.gds_mclsf_cd) || undefined,
+    productCode: toStr(raw?.STD_SPCIES_CODE ?? raw?.SPCIES_CD ?? raw?.gds_mclsf_cd) || undefined,
     productName:
       toStr(raw?.STD_SPCIES_NM) ||
+      toStr(raw?.SPCIES_NM) ||
+      toStr(raw?.PRDLST_NM) ||          // ✅ 테스트 XML 대응 가능성 높음
+      toStr(raw?.STD_PRDLST_NM) ||      // ✅ 테스트 XML 대응 가능성 높음
       toStr(raw?.corp_gds_item_nm) ||
-      toStr(raw?.gds_mclsf_nm),
+      toStr(raw?.gds_mclsf_nm) ||
+      '',
 
-    // 구형 XML은 speciesCode 필드가 명확하지 않을 수 있음
     speciesCode: toStr(raw?.SPCIES_CD ?? raw?.gds_sclsf_cd) || undefined,
     speciesName:
       toStr(raw?.SPCIES_NM) ||
@@ -140,18 +167,16 @@ export function mapRow(raw: any): AuctionPriceRow {
       toStr(raw?.gds_sclsf_nm) ||
       undefined,
 
-    // 규격/품질
     unitName:
       [unitQty ? String(unitQty) : '', unitNm, pkgNm].filter(Boolean).join(' ') ||
       legacyUnit ||
       undefined,
+
     qualityName: toStr(raw?.GRAD ?? raw?.stndrd) || undefined,
 
-    // 가격/수량
     bidPrice: toNumber(raw?.SBID_PRIC ?? raw?.scsbd_prc),
     quantity: toOptionalNumber(raw?.DELNG_QY ?? raw?.qty),
 
-    // 산지
     originAreaName: toStr(raw?.SHIPMNT_SE_NM ?? raw?.plor_nm) || undefined,
   };
 }
