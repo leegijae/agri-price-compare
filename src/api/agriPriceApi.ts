@@ -1,15 +1,9 @@
 import axios from 'axios';
-import { XMLParser } from 'fast-xml-parser';
+import dayjs from 'dayjs';
 import type { AuctionPriceRow, SearchParams } from '../types/agriPrice';
 
-const BASE_URL = 'http://localhost:4000/api';
-const SERVICE_NAME = 'Grid_20240625000000000654_1';
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  trimValues: true,
-  parseTagValue: false,
-});
+const BASE_URL = 'http://localhost:4000/api';
 
 function toNumber(value: unknown): number {
   if (value == null) return 0;
@@ -27,84 +21,95 @@ function toStr(value: unknown): string {
   return value == null ? '' : String(value).trim();
 }
 
-function extractRowsFromParsedXml(parsed: any): any[] {
-  const root = parsed?.[SERVICE_NAME] ?? parsed;
-  let rows = root?.row ?? [];
-  if (!Array.isArray(rows)) rows = rows ? [rows] : [];
-  return rows;
+function asArray<T>(value: T | T[] | undefined | null): T[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
+// data.go.kr katRealTime2 응답 item -> 앱 타입 매핑
 function mapRow(raw: any): AuctionPriceRow {
+  const unitQty = toOptionalNumber(raw?.unit_qty);
+  const unitNm = toStr(raw?.unit_nm);
+  const pkgNm = toStr(raw?.pkg_nm);
+
   return {
-    rowNum: toNumber(raw?.ROW_NUM),
-    tradeDate: toStr(raw?.SALEDATE),            // 변경
-    bidTime: toStr(raw?.SBIDTIME) || undefined, // 변경
+    // 구형 ROW_NUM 없음 -> 경매순번으로 대체(숫자 아님 가능성 고려)
+    rowNum: toNumber(raw?.auctn_seq),
+
+    // 날짜/시간
+    tradeDate: toStr(raw?.trd_clcln_ymd),           // 예: 2026-02-20
+    bidTime: toStr(raw?.scsbd_dt) || undefined,     // 예: 2026-02-20 09:15:14
 
     // 시장
-    marketCode: toStr(raw?.WHSALCD) || undefined,
-    marketName: toStr(raw?.WHSALNAME),
+    marketCode: toStr(raw?.whsl_mrkt_cd) || undefined,
+    marketName: toStr(raw?.whsl_mrkt_nm),
 
     // 법인
-    corpCode: toStr(raw?.CMPCD) || undefined,
-    corpName: toStr(raw?.CMPNAME) || undefined,
+    corpCode: toStr(raw?.corp_cd) || undefined,
+    corpName: toStr(raw?.corp_nm) || undefined,
 
-    // 품목 계층 (기존 타입에 맞춰 매핑)
-    categoryCode: toStr(raw?.LARGE) || undefined,
-    categoryName: toStr(raw?.LARGENAME) || undefined,
+    // 품목 계층
+    categoryCode: toStr(raw?.gds_lclsf_cd) || undefined,
+    categoryName: toStr(raw?.gds_lclsf_nm) || undefined,
 
-    productCode: toStr(raw?.MID) || undefined,
-    productName: toStr(raw?.MIDNAME), // 중분류명을 상품명처럼 사용
+    productCode: toStr(raw?.gds_mclsf_cd) || undefined,
+    productName: toStr(raw?.corp_gds_item_nm) || toStr(raw?.gds_mclsf_nm),
 
-    speciesCode: toStr(raw?.SMALL) || undefined,
-    speciesName: toStr(raw?.SMALLNAME) || undefined,
+    speciesCode: toStr(raw?.gds_sclsf_cd) || undefined,
+    speciesName:
+      toStr(raw?.corp_gds_vrty_nm) ||
+      toStr(raw?.gds_sclsf_nm) ||
+      undefined,
 
-    unitName: toStr(raw?.STD) || undefined, // 규격
+    // 규격/품질
+    unitName:
+      [unitQty ? String(unitQty) : '', unitNm, pkgNm].filter(Boolean).join(' ') ||
+      undefined,
     qualityName: undefined,
 
-    bidPrice: toNumber(raw?.COST),          // 변경
-    quantity: toOptionalNumber(raw?.QTY),   // 변경
+    // 가격/수량
+    bidPrice: toNumber(raw?.scsbd_prc),
+    quantity: toOptionalNumber(raw?.qty),
 
-    originAreaName: toStr(raw?.SANNAME) || undefined,
+    // 산지
+    originAreaName: toStr(raw?.plor_nm) || undefined,
   };
 }
 
 export async function fetchAuctionPrices(params: SearchParams): Promise<AuctionPriceRow[]> {
   const {
     date,
-    marketName, // 여기엔 시장명 대신 "시장코드"를 넣어도 됨 (임시)
+    marketName, // 시장명 또는 시장코드
     productName,
     startIndex = 1,
     endIndex = 50,
   } = params;
 
-  const response = await axios.get<string>(`${BASE_URL}/agri-price`, {
+  const response = await axios.get(`${BASE_URL}/agri-price`, {
     params: {
       SALEDATE: date,
-      // 서버에서 코드/이름 둘 다 처리하도록 해놨지만, 일단 marketName 값을 넘김
-      // (입력값이 시장명이면 서버가 매핑, 코드면 그대로 사용)
       WHSALCD: /^\d+$/.test(marketName) ? marketName : undefined,
       WHSAL_MRKT_NM: /^\d+$/.test(marketName) ? undefined : marketName,
       startIndex,
       endIndex,
     },
-    responseType: 'text',
+    // responseType 지정 안 함 (JSON 자동 파싱)
   });
 
-  const parsed = xmlParser.parse(response.data);
+  const data = response.data;
+  const header = data?.response?.header;
+  const body = data?.response?.body;
 
-  // 에러 XML 처리 (result 루트 / 서비스 루트 내부 result 모두 대응)
-  const rootResult = parsed?.result;
-  const serviceResult = parsed?.[SERVICE_NAME]?.result;
-  const resultNode = serviceResult || rootResult;
+  const resultCode = toStr(header?.resultCode);
+  const resultMsg = toStr(header?.resultMsg);
 
-  const apiErrorCode = toStr(resultNode?.code);
-  const apiErrorMessage = toStr(resultNode?.message);
-
-  if (apiErrorCode && apiErrorCode !== 'INFO-000') {
-    throw new Error(apiErrorMessage || `API 오류: ${apiErrorCode}`);
+  // data.go.kr 정상 코드는 보통 "0"
+  if (resultCode && resultCode !== '0') {
+    throw new Error(resultMsg || `API 오류: ${resultCode}`);
   }
 
-  const rows = extractRowsFromParsedXml(parsed).map(mapRow);
+  const rawItems = asArray(body?.items?.item);
+  const rows = rawItems.map(mapRow);
 
   if (productName?.trim()) {
     const keyword = productName.trim();
@@ -117,4 +122,40 @@ export async function fetchAuctionPrices(params: SearchParams): Promise<AuctionP
   }
 
   return rows;
+}
+
+export async function fetchRecentVolatilityData(params: {
+  marketName: string;
+  days?: number;
+  endDate?: string; // YYYYMMDD 또는 YYYY-MM-DD
+}): Promise<{ date: string; rows: AuctionPriceRow[] }[]> {
+  const { marketName, days = 7, endDate } = params;
+
+  const base = dayjs(endDate || dayjs().format('YYYY-MM-DD'));
+  const tasks: Promise<{ date: string; rows: AuctionPriceRow[] }>[] = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = base.subtract(i, 'day').format('YYYYMMDD');
+
+    tasks.push(
+      fetchAuctionPrices({
+        date: d,
+        marketName,
+        startIndex: 1,
+        endIndex: 200,
+      }).then((rows) => ({
+        date: base.subtract(i, 'day').format('YYYY-MM-DD'),
+        rows,
+      }))
+    );
+  }
+
+  const settled = await Promise.allSettled(tasks);
+
+  return settled
+    .filter(
+      (r): r is PromiseFulfilledResult<{ date: string; rows: AuctionPriceRow[] }> =>
+        r.status === 'fulfilled'
+    )
+    .map((r) => r.value);
 }

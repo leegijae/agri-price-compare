@@ -26,3 +26,29 @@ export type SearchParams = {
   startIndex?: number;
   endIndex?: number;
 };
+
+export type VolatileItemPoint = {
+  productKey: string;
+  productName: string;
+  speciesName?: string;
+  firstAvgPrice: number;
+  latestAvgPrice: number;
+  changeRate: number;
+  changeAmount: number;
+};
+
+export type PeriodOption = '7D' | '30D';
+
+export type VolatilitySeriesPoint = {
+  date: string;
+  price: number;
+  changeRate: number;
+};
+
+export type VolatilitySeries = {
+  productKey: string;
+  productName: string;
+  speciesName?: string;
+  latestChangeRate: number;
+  points: VolatilitySeriesPoint[];
+};
