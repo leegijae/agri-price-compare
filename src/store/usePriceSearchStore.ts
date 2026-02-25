@@ -63,7 +63,7 @@ export const usePriceSearchStore = create<State>((set, get) => ({
   marketName,
   productName,
   startIndex: 1,
-  endIndex: 5, // 샘플 API 제한 대응
+  endIndex: 50, // 또는 100
 });
       set({
         items: sortAuctionItems(items, sortType),
