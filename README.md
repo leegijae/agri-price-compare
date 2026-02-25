@@ -22,3 +22,14 @@ node server.js
 ```
 ## 기획문서
 https://www.notion.so/31198c30a2b38024b56efc776b8da17a?source=copy_link
+
+## QA CLI Workflow (Warp + GitHub CLI)
+
+### Local quality gate (Warp)
+npm ci
+npm run qa:check
+
+### Check GitHub Actions from CLI
+gh run list --limit 10
+gh run view --log
+gh run watch
