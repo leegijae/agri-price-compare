@@ -6,16 +6,18 @@ import { usePriceSearchStore } from '../store/usePriceSearchStore';
 export default function SearchScreen() {
   const {
     date,
-    marketName,
     productName,
     loading,
     error,
     setDate,
-    setMarketName,
     setProductName,
     search,
     sortType,
     setSortType,
+    region,
+    setRegion,
+    categoryTab,
+    setCategoryTab,
   } = usePriceSearchStore();
 
   const sortButtons = [
@@ -26,18 +28,21 @@ export default function SearchScreen() {
   ] as const;
 
   return (
-    <View style={{ paddingTop: 8 }}>
+    <View style={{ paddingTop: 8, gap: 10 }}>
       <SearchForm
         date={date}
-        marketName={marketName}
         productName={productName}
         loading={loading}
+        region={region}
+        categoryTab={categoryTab}
         onChangeDate={setDate}
-        onChangeMarketName={setMarketName}
         onChangeProductName={setProductName}
+        onChangeRegion={setRegion}
+        onChangeCategoryTab={setCategoryTab}
         onSubmit={search}
       />
 
+      {/* 정렬 칩 */}
       <View
         style={{
           flexDirection: 'row',
@@ -55,21 +60,25 @@ export default function SearchScreen() {
               onPress={() => setSortType(btn.key)}
               style={{
                 borderWidth: 1,
-                borderColor: active ? '#222' : '#ccc',
-                backgroundColor: active ? '#222' : '#fff',
+                borderColor: active ? '#2563EB' : '#D1D5DB',
+                backgroundColor: active ? '#EFF6FF' : '#FFFFFF',
                 paddingHorizontal: 10,
                 paddingVertical: 6,
-                borderRadius: 8,
+                borderRadius: 999,
               }}
             >
-              <Text style={{ color: active ? '#fff' : '#222' }}>{btn.label}</Text>
+              <Text style={{ color: '#111827', fontWeight: '700', fontSize: 12 }}>
+                {btn.label}
+              </Text>
             </Pressable>
           );
         })}
       </View>
 
       {error ? (
-        <Text style={{ color: 'red', paddingHorizontal: 16 }}>{error}</Text>
+        <Text style={{ color: '#DC2626', paddingHorizontal: 16, paddingBottom: 6 }}>
+          {error}
+        </Text>
       ) : null}
     </View>
   );

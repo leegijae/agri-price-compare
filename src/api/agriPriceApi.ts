@@ -10,7 +10,14 @@ const xmlParser = new XMLParser({
   parseTagValue: true,
   trimValues: true,
 });
+export type WholesaleMarket = { codeId: string; codeName: string };
 
+export async function fetchWholesaleMarkets(date: string): Promise<WholesaleMarket[]> {
+  const res = await axios.get(`${BASE_URL}/wholesale-markets`, {
+    params: { SALEDATE: date },
+  });
+  return Array.isArray(res.data?.markets) ? res.data.markets : [];
+}
 export function toNumber(value: unknown): number {
   if (value == null) return 0;
   const n = Number(String(value).replace(/,/g, '').trim());
