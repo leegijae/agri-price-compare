@@ -5,19 +5,15 @@ import { usePriceSearchStore } from '../store/usePriceSearchStore';
 
 export default function SearchScreen() {
   const {
-    date,
     productName,
     loading,
     error,
-    setDate,
     setProductName,
     search,
     sortType,
     setSortType,
     region,
     setRegion,
-    categoryTab,
-    setCategoryTab,
   } = usePriceSearchStore();
 
   const sortButtons = [
@@ -30,28 +26,15 @@ export default function SearchScreen() {
   return (
     <View style={{ paddingTop: 8, gap: 10 }}>
       <SearchForm
-        date={date}
         productName={productName}
         loading={loading}
         region={region}
-        categoryTab={categoryTab}
-        onChangeDate={setDate}
         onChangeProductName={setProductName}
         onChangeRegion={setRegion}
-        onChangeCategoryTab={setCategoryTab}
         onSubmit={search}
       />
 
-      {/* 정렬 칩 */}
-      <View
-        style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: 8,
-          paddingHorizontal: 16,
-          paddingBottom: 8,
-        }}
-      >
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
         {sortButtons.map((btn) => {
           const active = sortType === btn.key;
           return (
@@ -67,19 +50,13 @@ export default function SearchScreen() {
                 borderRadius: 999,
               }}
             >
-              <Text style={{ color: '#111827', fontWeight: '700', fontSize: 12 }}>
-                {btn.label}
-              </Text>
+              <Text style={{ color: '#111827', fontWeight: '700', fontSize: 12 }}>{btn.label}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      {error ? (
-        <Text style={{ color: '#DC2626', paddingHorizontal: 16, paddingBottom: 6 }}>
-          {error}
-        </Text>
-      ) : null}
+      {error ? <Text style={{ color: '#DC2626', paddingHorizontal: 16, paddingBottom: 6 }}>{error}</Text> : null}
     </View>
   );
 }
