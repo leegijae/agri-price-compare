@@ -169,7 +169,7 @@ describe('VolatilityGraphScreen', () => {
     });
   });
 
-  it('차트 컴포넌트의 period 변경 콜백이 반영되면 30D 기준으로 다시 조회한다', async () => {
+    it('차트 컴포넌트의 period 변경 콜백이 반영되면 30D 기준으로 다시 조회한다', async () => {
     mockedGetDaysFromPeriod
       .mockReturnValueOnce(7)
       .mockReturnValueOnce(30);

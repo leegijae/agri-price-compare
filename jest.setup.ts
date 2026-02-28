@@ -1,6 +1,5 @@
 // jest.setup.ts
 import '@testing-library/jest-native/extend-expect';
-
 // Expo Router mock (초기 템플릿 테스트 안정화용)
 jest.mock('expo-router', () => ({
   useRouter: () => ({

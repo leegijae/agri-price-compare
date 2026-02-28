@@ -114,11 +114,48 @@ describe('VolatilityPeriodLineChart', () => {
   });
 
   it('포인트 클릭 시 툴팁이 열리고 다시 클릭하면 닫힌다', () => {
-  const { UNSAFE_root, getByText, queryByText } = render(
+    const { UNSAFE_root, getByText, queryByText } = render(
+      <VolatilityPeriodLineChart
+        period="7D"
+        onChangePeriod={jest.fn()}
+        series={sampleSeries as any}
+      />
+    );
+
+    const pressableLikeNodes = UNSAFE_root.findAll(
+      (node: any) => typeof node.props?.onPress === 'function'
+    );
+
+    fireEvent.press(pressableLikeNodes[2]);
+
+    expect(getByText(/변동률:/)).toBeTruthy();
+    expect(getByText(/평균가:/)).toBeTruthy();
+
+    fireEvent.press(pressableLikeNodes[2]);
+
+    expect(queryByText(/변동률:/)).toBeNull();
+    expect(queryByText(/평균가:/)).toBeNull();
+  });
+
+  it('음수 변동률 포인트 클릭 시 마이너스 값과 말줄임 상품명을 표시한다', () => {
+  const longNameSeries = [
+    {
+      productKey: 'kw:0:very-long-name',
+      productName: '아주아주긴상품명이름테스트용배추',
+      latestChangeRate: -20,
+      points: [
+        { date: '2026-02-26', price: 2000, changeRate: 0 },
+        { date: '2026-02-27', price: 1800, changeRate: -10 },
+        { date: '2026-02-28', price: 1600, changeRate: -20 },
+      ],
+    },
+  ];
+
+  const { UNSAFE_root, getByText, getAllByText } = render(
     <VolatilityPeriodLineChart
       period="7D"
       onChangePeriod={jest.fn()}
-      series={sampleSeries as any}
+      series={longNameSeries as any}
     />
   );
 
@@ -126,15 +163,69 @@ describe('VolatilityPeriodLineChart', () => {
     (node: any) => typeof node.props?.onPress === 'function'
   );
 
-  // 앞의 2개는 7일/30일 버튼, 이후 노드 중 첫 번째 포인트 사용
-  fireEvent.press(pressableLikeNodes[2]);
+  fireEvent.press(pressableLikeNodes[4]);
 
   expect(getByText(/변동률:/)).toBeTruthy();
-  expect(getByText(/평균가:/)).toBeTruthy();
-
-  fireEvent.press(pressableLikeNodes[2]);
-
-  expect(queryByText(/변동률:/)).toBeNull();
-  expect(queryByText(/평균가:/)).toBeNull();
+  expect(getByText(/-20%|-10%/)).toBeTruthy();
+  expect(getAllByText(/아주아주긴상품명이름테스/).length).toBeGreaterThan(0);
 });
+
+  it('포인트가 1개뿐이어도 차트를 렌더링하고 툴팁을 표시한다', () => {
+    const singlePointSeries = [
+      {
+        productKey: 'kw:0:양파',
+        productName: '양파',
+        latestChangeRate: 0,
+        points: [
+          { date: '2026-02-28', price: 1500, changeRate: 0 },
+        ],
+      },
+    ];
+
+    const { UNSAFE_root, getByText } = render(
+      <VolatilityPeriodLineChart
+        period="7D"
+        onChangePeriod={jest.fn()}
+        series={singlePointSeries as any}
+      />
+    );
+
+    expect(getByText('양파')).toBeTruthy();
+
+    const pressableLikeNodes = UNSAFE_root.findAll(
+      (node: any) => typeof node.props?.onPress === 'function'
+    );
+
+    fireEvent.press(pressableLikeNodes[2]);
+
+    expect(getByText(/변동률:/)).toBeTruthy();
+    expect(getByText(/평균가:/)).toBeTruthy();
+  });
+
+  it('날짜가 많으면 X축 라벨을 일부만 표시한다', () => {
+    const manyPoints = Array.from({ length: 16 }, (_, i) => ({
+      date: `2026-02-${String(i + 1).padStart(2, '0')}`,
+      price: 1000 + i * 100,
+      changeRate: i * 5,
+    }));
+
+    const longSeries = [
+      {
+        productKey: 'kw:0:토마토',
+        productName: '토마토',
+        latestChangeRate: 75,
+        points: manyPoints,
+      },
+    ];
+
+    const { queryByText } = render(
+      <VolatilityPeriodLineChart
+        period="30D"
+        onChangePeriod={jest.fn()}
+        series={longSeries as any}
+      />
+    );
+
+    expect(queryByText('02-16')).toBeTruthy();
+  });
 });

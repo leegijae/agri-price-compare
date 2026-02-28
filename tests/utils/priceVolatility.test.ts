@@ -161,4 +161,77 @@ describe('getTopVolatileItems', () => {
   it('입력이 비어 있으면 빈 배열을 반환한다', () => {
     expect(getTopVolatileItems([], 5)).toEqual([]);
   });
+  it('productName이 없으면 미분류로 그룹화한다', () => {
+  const dailyData: DailyRows[] = [
+    {
+      date: '20260227',
+      rows: [makeRow({ productName: '', speciesName: '일반', bidPrice: 1000 })],
+    },
+    {
+      date: '20260228',
+      rows: [makeRow({ productName: '', speciesName: '일반', bidPrice: 2000 })],
+    },
+  ];
+
+  const result = getTopVolatileItems(dailyData, 5);
+
+  expect(result).toHaveLength(1);
+  expect(result[0].productName).toBe('미분류');
+  expect(result[0].productKey).toBe('미분류__일반');
+  expect(result[0].changeRate).toBe(100);
+});
+
+it('특정 날짜의 bidPrice가 모두 0 이하이면 그 날짜는 제외되어 계산된다', () => {
+  const dailyData: DailyRows[] = [
+    {
+      date: '20260227',
+      rows: [makeRow({ productName: '감자', bidPrice: 1000 })],
+    },
+    {
+      date: '20260228',
+      rows: [
+        makeRow({ productName: '감자', bidPrice: 0 }),
+        makeRow({ productName: '감자', bidPrice: -100 }),
+      ],
+    },
+    {
+      date: '20260301',
+      rows: [makeRow({ productName: '감자', bidPrice: 3000 })],
+    },
+  ];
+
+  const result = getTopVolatileItems(dailyData, 5);
+
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({
+    productName: '감자',
+    firstAvgPrice: 1000,
+    latestAvgPrice: 3000,
+    changeAmount: 2000,
+    changeRate: 200,
+  });
+});
+
+it('유효한 bidPrice가 없는 품목은 결과에 포함되지 않는다', () => {
+  const dailyData: DailyRows[] = [
+    {
+      date: '20260227',
+      rows: [
+        makeRow({ productName: '고구마', bidPrice: 0 }),
+        makeRow({ productName: '고구마', bidPrice: -10 }),
+      ],
+    },
+    {
+      date: '20260228',
+      rows: [
+        makeRow({ productName: '고구마', bidPrice: 0 }),
+        makeRow({ productName: '고구마', bidPrice: -20 }),
+      ],
+    },
+  ];
+
+  const result = getTopVolatileItems(dailyData, 5);
+
+  expect(result).toEqual([]);
+});
 });

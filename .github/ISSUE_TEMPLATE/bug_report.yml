@@ -1,0 +1,90 @@
+name: Bug Report
+description: 앱 동작 이상, UI 문제, 데이터 처리 오류, 테스트 실패 등의 버그를 제보합니다.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 버그 요약
+      description: 어떤 문제가 발생했는지 간단히 작성해주세요.
+      placeholder: 예) 그래프 비교하기 버튼 클릭 후 에러 메시지가 잘못 표시됨
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 절차
+      description: 버그를 다시 발생시키는 절차를 순서대로 적어주세요.
+      placeholder: |
+        1. 앱 실행
+        2. 품목 입력
+        3. 그래프 비교하기 클릭
+        4. 결과 확인
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+      placeholder: 예) 검색 결과가 없을 경우 안내 메시지가 표시되어야 한다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      placeholder: 예) 아무 메시지도 표시되지 않거나 잘못된 데이터가 표시된다.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 심각도(Severity)
+      options:
+        - Critical
+        - Major
+        - Minor
+        - Trivial
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위(Priority)
+      options:
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+
+  - type: input
+    id: reproducibility
+    attributes:
+      label: 재현율
+      placeholder: 예) Always / Sometimes / Rarely / 5/5 / 2/5
+
+  - type: input
+    id: environment
+    attributes:
+      label: 환경
+      placeholder: 예) Android / iOS / Web / Windows / Chrome
+
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전 / 브랜치 / 커밋
+      placeholder: 예) main / feature/qa-improve / commit hash
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그 / 스크린샷 / 참고 자료
+      description: 오류 로그, 스택 트레이스, 스크린샷 등을 첨부해주세요.
+      placeholder: 콘솔 로그, GitHub Actions 실패 로그, 화면 캡처 등
