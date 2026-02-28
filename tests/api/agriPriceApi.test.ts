@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
   fetchAuctionPrices,
   fetchWholesaleMarkets,
+  fetchRecentVolatilityData,
 } from '@/src/api/agriPriceApi';
 
 jest.mock('axios');
@@ -244,7 +245,7 @@ describe('agriPriceApi', () => {
                     trd_clcln_ymd: '20260228',
                     whsl_mrkt_cd: '110001',
                     whsl_mrkt_nm: '서울가락',
-                    std_prdlst_nm: '배추',
+                    PRDLST_NM: '배추',
                     scsbd_prc: '3500',
                     qty: '12',
                   },
@@ -399,6 +400,144 @@ describe('agriPriceApi', () => {
         endIndex: 5,
       });
       expect(config?.params?.WHSALCD).toBeUndefined();
+    });
+  });
+
+  describe('fetchRecentVolatilityData', () => {
+    it('days와 endDate를 기준으로 날짜별 시계열을 반환한다', async () => {
+      const rowXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Grid_20151127000000000313_1>
+  <result>
+    <message>정상 처리되었습니다.</message>
+    <code>INFO-000</code>
+  </result>
+  <row>
+    <ROW_NUM>1</ROW_NUM>
+    <DELNG_DE>20260226</DELNG_DE>
+    <WHSAL_MRKT_NM>서울강서도매시장</WHSAL_MRKT_NM>
+    <STD_PRDLST_NM>배추</STD_PRDLST_NM>
+    <SBID_PRIC>1000</SBID_PRIC>
+    <DELNG_QY>10</DELNG_QY>
+  </row>
+</Grid_20151127000000000313_1>`;
+
+      mockedAxios.get
+        .mockResolvedValueOnce({ data: rowXml } as any)
+        .mockResolvedValueOnce({ data: rowXml } as any)
+        .mockResolvedValueOnce({ data: rowXml } as any);
+
+      const result = await fetchRecentVolatilityData({
+        marketName: '서울강서도매시장',
+        days: 3,
+        endDate: '2026-02-28',
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result.map((x) => x.date)).toEqual([
+        '2026-02-26',
+        '2026-02-27',
+        '2026-02-28',
+      ]);
+      expect(result.every((x) => Array.isArray(x.rows))).toBe(true);
+    });
+
+    it('일부 날짜 조회가 실패해도 성공한 날짜만 반환한다', async () => {
+      const rowXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Grid_20151127000000000313_1>
+  <result>
+    <message>정상 처리되었습니다.</message>
+    <code>INFO-000</code>
+  </result>
+  <row>
+    <ROW_NUM>1</ROW_NUM>
+    <DELNG_DE>20260227</DELNG_DE>
+    <WHSAL_MRKT_NM>서울강서도매시장</WHSAL_MRKT_NM>
+    <STD_PRDLST_NM>무</STD_PRDLST_NM>
+    <SBID_PRIC>1500</SBID_PRIC>
+    <DELNG_QY>5</DELNG_QY>
+  </row>
+</Grid_20151127000000000313_1>`;
+
+      mockedAxios.get
+        .mockResolvedValueOnce({ data: rowXml } as any)
+        .mockRejectedValueOnce(new Error('Network Error'))
+        .mockResolvedValueOnce({ data: rowXml } as any);
+
+      const result = await fetchRecentVolatilityData({
+        marketName: '서울강서도매시장',
+        days: 3,
+        endDate: '2026-02-28',
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((x) => x.date)).toEqual([
+        '2026-02-26',
+        '2026-02-28',
+      ]);
+    });
+  });
+
+  describe('fetchAuctionPrices - extra branches', () => {
+    it('이미 파싱된 객체 응답에서 오류 코드가 있으면 예외를 throw 한다', async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          someRoot: {
+            result: {
+              code: 'ERROR-999',
+              message: '객체 응답 오류',
+            },
+          },
+        },
+      } as any);
+
+      await expect(
+        fetchAuctionPrices({
+          date: '20260228',
+          marketName: '서울강서도매시장',
+        })
+      ).rejects.toThrow('객체 응답 오류');
+    });
+
+    it('응답 데이터가 문자열/객체가 아닌 경우 빈 배열을 반환한다', async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        data: 12345,
+      } as any);
+
+      const result = await fetchAuctionPrices({
+        date: '20260228',
+        marketName: '서울강서도매시장',
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it('단일 row 객체도 배열처럼 처리해 1건 반환한다', async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          ServiceResult: {
+            row: {
+              ROW_NUM: '1',
+              DELNG_DE: '20260228',
+              WHSAL_MRKT_NM: '서울강서도매시장',
+              STD_PRDLST_NM: '양파',
+              SBID_PRIC: '2500',
+              DELNG_QY: '7',
+            },
+          },
+        },
+      } as any);
+
+      const result = await fetchAuctionPrices({
+        date: '20260228',
+        marketName: '서울강서도매시장',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        productName: '양파',
+        bidPrice: 2500,
+        quantity: 7,
+      });
     });
   });
 });
