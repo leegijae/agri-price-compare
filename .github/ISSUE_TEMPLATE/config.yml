@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Repository Guide
+    url: https://github.com/leegijae/PP
+    about: README와 테스트/CI 구성을 먼저 확인한 뒤 이슈를 작성해주세요.

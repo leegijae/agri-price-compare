@@ -1,57 +1,72 @@
 import React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 
 type Props = {
-  date: string;
-  marketName: string;
   productName: string;
   loading?: boolean;
-  onChangeDate: (v: string) => void;
-  onChangeMarketName: (v: string) => void;
+
+  region: string;
+
   onChangeProductName: (v: string) => void;
+  onChangeRegion: (v: string) => void;
+
   onSubmit: () => void;
 };
 
+const REGIONS = [
+  '전체', '서울', '부산', '대구', '인천', '광주', '대전',
+  '경기', '강원', '전북', '전남', '경북', '경남', '제주',
+] as const;
+
 export default function SearchForm({
-  date,
-  marketName,
   productName,
   loading = false,
-  onChangeDate,
-  onChangeMarketName,
+  region,
   onChangeProductName,
+  onChangeRegion,
   onSubmit,
 }: Props) {
-  const isValid = date.trim().length > 0 && marketName.trim().length > 0;
-  const disabled = !isValid || loading;
+  const disabled = loading;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>도매시장 가격 조회</Text>
+      <Text style={styles.pageTitle}>농산물 가격정보</Text>
 
-      <TextInput
-        testID="date-input"
-        style={styles.input}
-        placeholder="조회일자 (예: 20260224)"
-        value={date}
-        onChangeText={onChangeDate}
-      />
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>도매시장 선택</Text>
 
-      <TextInput
-        testID="market-input"
-        style={styles.input}
-        placeholder="시장명 (예: 서울강서도매시장)"
-        value={marketName}
-        onChangeText={onChangeMarketName}
-      />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {REGIONS.map((r) => {
+            const active = region === r;
+            return (
+              <Pressable
+                key={r}
+                onPress={() => onChangeRegion(r)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{r}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-      <TextInput
-        testID="product-input"
-        style={styles.input}
-        placeholder="품목명 (예: 배추)"
-        value={productName}
-        onChangeText={onChangeProductName}
-      />
+        {region === '전체' ? (
+          <Text style={styles.helperText}>전체 지역 기준으로 최근 60일 내 거래 데이터를 조회합니다.</Text>
+        ) : (
+          <Text style={styles.helperText}>선택 지역: {region} · 최근 60일 기준</Text>
+        )}
+      </View>
+
+      <View style={styles.searchBoxWhite}>
+        <Text style={styles.searchIcon}></Text>
+        <TextInput
+          testID="product-input"
+          style={styles.searchInput}
+          placeholder="농산물 검색(선택)..."
+          value={productName}
+          onChangeText={onChangeProductName}
+        />
+      </View>
 
       <Pressable
         testID="search-button"
@@ -60,35 +75,56 @@ export default function SearchForm({
         disabled={disabled}
         style={[styles.button, disabled && styles.buttonDisabled]}
       >
-        <Text style={styles.buttonText}>
-          {loading ? '조회 중...' : '조회'}
-        </Text>
+        <Text style={styles.buttonText}>{loading ? '조회 중...' : '조회'}</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12 },
-  title: { fontSize: 20, fontWeight: '700' },
-  input: {
+  container: { paddingTop: 10, paddingHorizontal: 16, gap: 12 },
+  pageTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
+  panel: {
+    backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: '#DBEAFE',
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
   },
-  button: {
-    backgroundColor: '#222',
+  panelTitle: { fontSize: 14, fontWeight: '700', color: '#1E3A8A' },
+  chipRow: { gap: 8, paddingVertical: 2, paddingRight: 8 },
+  chip: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  chipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  chipText: { color: '#111827', fontWeight: '600', fontSize: 12 },
+  chipTextActive: { color: '#FFFFFF' },
+  searchBoxWhite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 10,
     paddingVertical: 12,
-    borderRadius: 8,
+    gap: 8,
+  },
+  searchIcon: { fontSize: 14 },
+  searchInput: { flex: 1, fontSize: 14 },
+  helperText: { fontSize: 12, color: '#475569', fontWeight: '700' },
+  button: {
+    backgroundColor: '#111827',
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.4,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  buttonDisabled: { opacity: 0.4 },
+  buttonText: { color: '#FFFFFF', fontWeight: '800' },
 });

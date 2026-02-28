@@ -1,0 +1,48 @@
+name: Feature Request
+description: 기능 개선, 품질 개선, 테스트/자동화 개선 아이디어를 제안합니다.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: 배경
+      description: 왜 이 기능 또는 개선이 필요한지 작성해주세요.
+      placeholder: 예) 사용자가 검색 결과를 더 쉽게 비교할 수 있도록 정렬 기준이 추가로 필요함
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 제안 내용
+      description: 원하는 기능 또는 개선 방향을 구체적으로 적어주세요.
+      placeholder: 예) 가격순/거래량순 외에 변동률순 정렬을 추가하고 싶음
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_impact
+    attributes:
+      label: 기대 효과
+      description: 이 변경이 사용자 경험, 품질, 유지보수성에 어떤 도움이 되는지 적어주세요.
+      placeholder: 예) 검색 결과 해석이 쉬워지고 비교 효율이 올라감
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 대안 또는 검토 사항
+      placeholder: 다른 방식이 있다면 함께 적어주세요.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영향 영역
+      options:
+        - UI
+        - API
+        - Store/State
+        - Utils
+        - Test
+        - CI/CD
+        - Documentation

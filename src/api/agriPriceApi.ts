@@ -10,7 +10,25 @@ const xmlParser = new XMLParser({
   parseTagValue: true,
   trimValues: true,
 });
+export type WholesaleMarket = { codeId: string; codeName: string };
 
+export async function fetchWholesaleMarkets(date: string): Promise<WholesaleMarket[]> {
+  try {
+    const res = await axios.get(`${BASE_URL}/wholesale-markets`, {
+      params: { SALEDATE: date },
+      timeout: 15000,
+      validateStatus: () => true, // ✅ 502여도 throw 하지 않게
+    });
+
+    // ✅ 서버가 502/500 등을 주면 그냥 빈 배열로 처리
+    if (res.status >= 400) return [];
+
+    return Array.isArray(res.data?.markets) ? res.data.markets : [];
+  } catch {
+    // ✅ 네트워크 오류/타임아웃도 빈 배열 처리
+    return [];
+  }
+}
 export function toNumber(value: unknown): number {
   if (value == null) return 0;
   const n = Number(String(value).replace(/,/g, '').trim());

@@ -5,17 +5,15 @@ import { usePriceSearchStore } from '../store/usePriceSearchStore';
 
 export default function SearchScreen() {
   const {
-    date,
-    marketName,
     productName,
     loading,
     error,
-    setDate,
-    setMarketName,
     setProductName,
     search,
     sortType,
     setSortType,
+    region,
+    setRegion,
   } = usePriceSearchStore();
 
   const sortButtons = [
@@ -26,51 +24,39 @@ export default function SearchScreen() {
   ] as const;
 
   return (
-    <View style={{ paddingTop: 8 }}>
+    <View style={{ paddingTop: 8, gap: 10 }}>
       <SearchForm
-        date={date}
-        marketName={marketName}
         productName={productName}
         loading={loading}
-        onChangeDate={setDate}
-        onChangeMarketName={setMarketName}
+        region={region}
         onChangeProductName={setProductName}
+        onChangeRegion={setRegion}
         onSubmit={search}
       />
 
-      <View
-        style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: 8,
-          paddingHorizontal: 16,
-          paddingBottom: 8,
-        }}
-      >
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
         {sortButtons.map((btn) => {
           const active = sortType === btn.key;
           return (
             <Pressable
               key={btn.key}
-              onPress={() => setSortType(btn.key)}
+              onPress={() => setSortType(active ? 'none' : btn.key)}
               style={{
                 borderWidth: 1,
-                borderColor: active ? '#222' : '#ccc',
-                backgroundColor: active ? '#222' : '#fff',
+                borderColor: active ? '#2563EB' : '#D1D5DB',
+                backgroundColor: active ? '#EFF6FF' : '#FFFFFF',
                 paddingHorizontal: 10,
                 paddingVertical: 6,
-                borderRadius: 8,
+                borderRadius: 999,
               }}
             >
-              <Text style={{ color: active ? '#fff' : '#222' }}>{btn.label}</Text>
+              <Text style={{ color: '#111827', fontWeight: '700', fontSize: 12 }}>{btn.label}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      {error ? (
-        <Text style={{ color: 'red', paddingHorizontal: 16 }}>{error}</Text>
-      ) : null}
+      {error ? <Text style={{ color: '#DC2626', paddingHorizontal: 16, paddingBottom: 6 }}>{error}</Text> : null}
     </View>
   );
 }

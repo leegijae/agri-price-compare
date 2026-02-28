@@ -5,7 +5,7 @@ import PriceListScreen from './PriceListScreen';
 
 export default function MarketPriceScreen() {
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <View>
         <SearchScreen />
       </View>
