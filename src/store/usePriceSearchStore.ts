@@ -9,6 +9,8 @@ type State = {
 
   loading: boolean;
   error: string | null;
+
+  baseItems: AuctionPriceRow[];
   items: AuctionPriceRow[];
 
   sortType: SortType;
@@ -51,11 +53,6 @@ function normalizeMarketName(name: string) {
     .trim();
 }
 
-/**
- * ✅ 지역별 시장명 키워드 매칭
- * - codeName에 지역명이 생략되는 경우가 흔함(예: "엄궁")
- * - 그래서 region -> 키워드로 넓게 매칭
- */
 const REGION_KEYWORDS: Record<string, string[]> = {
   서울: ['서울', '가락', '강서', '노량진'],
   부산: ['부산', '엄궁', '반여', '국제', '국제수산'],
@@ -78,35 +75,112 @@ function marketMatchesRegion(codeName: string, region: string): boolean {
   return keywords.some((k) => k && n.includes(k));
 }
 
-/**
- * ✅ (핵심) 특정 날짜의 wholesale-markets 목록에 부산/인천/제주 시장이 “빠지는 날”이 있어
- * “최근 60일”을 거슬러 올라가며 “해당 지역 시장코드 존재” 날짜를 찾습니다. (무음 fallback)
- */
 async function getMarketCodesByRegion(region: string, baseDate: string): Promise<string[]> {
   const LOOKBACK_DAYS = 60;
 
   for (let i = 0; i <= LOOKBACK_DAYS; i++) {
-  const d = minusDays(baseDate, i);
+    const d = minusDays(baseDate, i);
 
-  let markets: WholesaleMarket[] = [];
-  try {
-    markets = await fetchWholesaleMarkets(d);
-  } catch {
-    continue; // ✅ 어떤 이유든 실패하면 다음 날짜로
+    let markets: WholesaleMarket[] = [];
+    try {
+      markets = await fetchWholesaleMarkets(d);
+    } catch {
+      continue;
+    }
+
+    if (!markets.length) continue;
+
+    MARKET_CACHE = { date: d, markets };
+
+    const codes =
+      region === '전체'
+        ? markets.map((m) => m.codeId)
+        : markets
+            .filter((m) => marketMatchesRegion(m.codeName, region))
+            .map((m) => m.codeId);
+
+    const uniqueCodes = [...new Set(codes)];
+    if (uniqueCodes.length > 0) return uniqueCodes;
   }
 
-  if (!markets.length) continue;
-
-  MARKET_CACHE = { date: d, markets };
-
-  const codes = markets
-    .filter((m) => marketMatchesRegion(m.codeName, region))
-    .map((m) => m.codeId);
-
-  if (codes.length > 0) return codes;
+  return [];
 }
 
-  return [];
+function chunk<T>(arr: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function makeProductKey(row: AuctionPriceRow) {
+  return [
+    row.productName,
+    row.speciesName ?? '',
+    row.unitName ?? '',
+    row.qualityName ?? '',
+  ].join('|');
+}
+
+function aggregateRows(rows: AuctionPriceRow[]): AuctionPriceRow[] {
+  const grouped = new Map<
+    string,
+    {
+      base: AuctionPriceRow;
+      totalQty: number;
+      weightedPriceSum: number;
+      priceWeight: number;
+      markets: Set<string>;
+    }
+  >();
+
+  for (const row of rows) {
+    const key = makeProductKey(row);
+    const qty = row.quantity ?? 0;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        base: row,
+        totalQty: 0,
+        weightedPriceSum: 0,
+        priceWeight: 0,
+        markets: new Set<string>(),
+      });
+    }
+
+    const current = grouped.get(key)!;
+    current.totalQty += qty;
+    current.markets.add(row.marketName);
+
+    if (qty > 0) {
+      current.weightedPriceSum += row.bidPrice * qty;
+      current.priceWeight += qty;
+    } else {
+      current.weightedPriceSum += row.bidPrice;
+      current.priceWeight += 1;
+    }
+  }
+
+  return Array.from(grouped.values()).map((entry, index) => {
+    const avgPrice =
+      entry.priceWeight > 0
+        ? Math.round(entry.weightedPriceSum / entry.priceWeight)
+        : entry.base.bidPrice;
+
+    const markets = Array.from(entry.markets);
+
+    let marketName = entry.base.marketName;
+    if (markets.length > 1) {
+      marketName = `${markets[0]} 외 ${markets.length - 1}곳`;
+    }
+
+    return {
+      ...entry.base,
+      rowNum: index + 1,
+      bidPrice: avgPrice,
+      quantity: entry.totalQty,
+      marketName,
+    };
+  });
 }
 
 export const usePriceSearchStore = create<State>((set, get) => ({
@@ -115,29 +189,29 @@ export const usePriceSearchStore = create<State>((set, get) => ({
 
   loading: false,
   error: null,
+  baseItems: [],
   items: [],
   sortType: 'none',
-
   effectiveDate: null,
 
   setProductName: (v) => set({ productName: v }),
   setRegion: (v) => set({ region: v }),
 
   setSortType: (v) => {
-    const { items } = get();
+    const { baseItems } = get();
     set({
       sortType: v,
-      items: sortAuctionItems(items, v),
+      items: sortAuctionItems(baseItems, v),
     });
   },
 
   clearError: () => set({ error: null }),
 
   search: async () => {
-    const { region, sortType } = get();
+    const { region, sortType, productName } = get();
 
-    if (!region || region === '전체') {
-      set({ error: '지역을 선택해주세요.' });
+    if (!region) {
+      set({ error: '지역 정보를 확인할 수 없습니다.' });
       return;
     }
 
@@ -151,34 +225,34 @@ export const usePriceSearchStore = create<State>((set, get) => ({
 
     const marketCodes = await getMarketCodesByRegion(region, todayYyyymmdd);
 
-    // ✅ “시장 데이터 부족 알림/대체지역 알림” 삭제 (요구사항)
     if (marketCodes.length === 0) {
-      set({ error: `선택한 지역(${region})에서 사용 가능한 시장코드를 찾지 못했습니다.` });
+      set({
+        error:
+          region === '전체'
+            ? '전 지역에서 사용 가능한 시장코드를 찾지 못했습니다.'
+            : `선택한 지역(${region})에서 사용 가능한 시장코드를 찾지 못했습니다.`,
+      });
       return;
     }
-
-    const chunk = <T,>(arr: T[], size: number) => {
-      const out: T[][] = [];
-      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-      return out;
-    };
 
     const dateCandidates: string[] = [];
     for (let i = 0; i < 60; i++) dateCandidates.push(minusDays(todayYyyymmdd, i));
 
-    set({ loading: true, error: null, effectiveDate: null });
+    set({
+      loading: true,
+      error: null,
+      effectiveDate: null,
+      baseItems: [],
+      items: [],
+    });
 
     try {
-      const makeProductKey = (row: AuctionPriceRow) =>
-        [row.productName, row.speciesName ?? '', row.unitName ?? '', row.qualityName ?? ''].join('|');
-
-      // ✅ 최근 거래 “최신 50종” 수집
-      const latestByProduct = new Map<string, AuctionPriceRow>();
+      let foundDate: string | null = null;
+      let foundRows: AuctionPriceRow[] = [];
 
       for (const d of dateCandidates) {
-        if (latestByProduct.size >= 50) break;
-
         const dayRows: AuctionPriceRow[] = [];
+
         for (const group of chunk(marketCodes, 4)) {
           const settled = await Promise.allSettled(
             group.map((code) =>
@@ -196,18 +270,17 @@ export const usePriceSearchStore = create<State>((set, get) => ({
           }
         }
 
-        for (const row of dayRows) {
-          const k = makeProductKey(row);
-          if (!latestByProduct.has(k)) latestByProduct.set(k, row);
-          if (latestByProduct.size >= 50) break;
+        if (dayRows.length > 0) {
+          foundDate = d;
+          foundRows = dayRows;
+          break;
         }
       }
 
-      const merged = Array.from(latestByProduct.values());
-
-      if (merged.length === 0) {
+      if (!foundDate || foundRows.length === 0) {
         set({
           loading: false,
+          baseItems: [],
           items: [],
           error: '최근 60일 내 조회 결과 0건입니다. (데이터 미집계/해당 기간 거래 없음 가능)',
           effectiveDate: todayYyyymmdd,
@@ -215,17 +288,41 @@ export const usePriceSearchStore = create<State>((set, get) => ({
         return;
       }
 
-      const maxTradeDate = merged.map((r) => r.tradeDate).filter(Boolean).sort().at(-1);
+      const keyword = productName.trim();
+      const filteredRows = keyword
+        ? foundRows.filter((r) => {
+            return (
+              r.productName.includes(keyword) ||
+              (r.speciesName ?? '').includes(keyword) ||
+              (r.categoryName ?? '').includes(keyword)
+            );
+          })
+        : foundRows;
+      function shuffleArray<T>(arr: T[]): T[] {
+  const copied = [...arr];
+  for (let i = copied.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copied[i], copied[j]] = [copied[j], copied[i]];
+  }
+  return copied;
+}
+      const aggregated = aggregateRows(filteredRows);
+const limited = shuffleArray(aggregated).slice(0, 50);
+
+      
 
       set({
-        items: sortAuctionItems(merged, sortType),
+        baseItems: limited,
+        items: sortAuctionItems(limited, sortType),
         loading: false,
-        effectiveDate: maxTradeDate ?? todayYyyymmdd,
+        effectiveDate: foundDate,
       });
     } catch (e: any) {
       console.error('[STORE] search failed:', e);
       set({
         loading: false,
+        baseItems: [],
+        items: [],
         error: '데이터 조회 중 오류가 발생했습니다. 네트워크/API 상태를 확인해주세요.',
       });
     }

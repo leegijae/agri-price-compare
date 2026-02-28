@@ -40,7 +40,7 @@ export default function SearchScreen() {
           return (
             <Pressable
               key={btn.key}
-              onPress={() => setSortType(btn.key)}
+              onPress={() => setSortType(active ? 'none' : btn.key)}
               style={{
                 borderWidth: 1,
                 borderColor: active ? '#2563EB' : '#D1D5DB',

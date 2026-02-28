@@ -26,8 +26,7 @@ export default function SearchForm({
   onChangeRegion,
   onSubmit,
 }: Props) {
-  const isValid = region !== '전체';
-  const disabled = !isValid || loading;
+  const disabled = loading;
 
   return (
     <View style={styles.container}>
@@ -52,7 +51,7 @@ export default function SearchForm({
         </ScrollView>
 
         {region === '전체' ? (
-          <Text style={styles.helperText}>지역을 선택하면 최근 60일 내 거래 데이터를 조회합니다.</Text>
+          <Text style={styles.helperText}>전체 지역 기준으로 최근 60일 내 거래 데이터를 조회합니다.</Text>
         ) : (
           <Text style={styles.helperText}>선택 지역: {region} · 최근 60일 기준</Text>
         )}
