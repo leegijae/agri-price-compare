@@ -13,15 +13,13 @@ const mockedUsePriceSearchStore = usePriceSearchStore as jest.MockedFunction<
 
 describe('SearchScreen', () => {
   const baseStoreState = {
-    date: '20151120',
-    marketName: '서울강서도매시장',
     productName: '배추',
     loading: false,
     error: null as string | null,
     sortType: 'none',
+    region: '전체',
     setSortType: jest.fn(),
-    setDate: jest.fn(),
-    setMarketName: jest.fn(),
+    setRegion: jest.fn(),
     setProductName: jest.fn(),
     search: jest.fn(),
   };
@@ -32,10 +30,11 @@ describe('SearchScreen', () => {
   });
 
   it('스토어 값을 기반으로 SearchForm 입력값을 렌더링한다', () => {
-    const { getByDisplayValue } = render(<SearchScreen />);
-    expect(getByDisplayValue('20151120')).toBeTruthy();
-    expect(getByDisplayValue('서울강서도매시장')).toBeTruthy();
+    const { getByDisplayValue, getByText } = render(<SearchScreen />);
     expect(getByDisplayValue('배추')).toBeTruthy();
+    expect(
+      getByText('전체 지역 기준으로 최근 60일 내 거래 데이터를 조회합니다.')
+    ).toBeTruthy();
   });
 
   it('에러가 없으면 에러 메시지를 표시하지 않는다', () => {
@@ -57,22 +56,16 @@ describe('SearchScreen', () => {
     ).toBeTruthy();
   });
 
-  it('조회일자 입력 변경이 스토어 setDate로 연결된다', () => {
-    const { getByTestId } = render(<SearchScreen />);
-    fireEvent.changeText(getByTestId('date-input'), '20151121');
-    expect(baseStoreState.setDate).toHaveBeenCalledWith('20151121');
-  });
-
-  it('시장명 입력 변경이 스토어 setMarketName으로 연결된다', () => {
-    const { getByTestId } = render(<SearchScreen />);
-    fireEvent.changeText(getByTestId('market-input'), '부산엄궁도매시장');
-    expect(baseStoreState.setMarketName).toHaveBeenCalledWith('부산엄궁도매시장');
-  });
-
   it('품목명 입력 변경이 스토어 setProductName으로 연결된다', () => {
     const { getByTestId } = render(<SearchScreen />);
     fireEvent.changeText(getByTestId('product-input'), '무');
     expect(baseStoreState.setProductName).toHaveBeenCalledWith('무');
+  });
+
+  it('지역 칩 클릭이 스토어 setRegion으로 연결된다', () => {
+    const { getByText } = render(<SearchScreen />);
+    fireEvent.press(getByText('서울'));
+    expect(baseStoreState.setRegion).toHaveBeenCalledWith('서울');
   });
 
   it('조회 버튼 클릭이 스토어 search로 연결된다', () => {
@@ -95,5 +88,22 @@ describe('SearchScreen', () => {
     const { getByText } = render(<SearchScreen />);
     fireEvent.press(getByText('가격↓'));
     expect(baseStoreState.setSortType).toHaveBeenCalledWith('price-desc');
+  });
+
+  it('활성화되지 않은 정렬 버튼을 누르면 해당 sortType으로 설정한다', () => {
+    const { getByText } = render(<SearchScreen />);
+    fireEvent.press(getByText('거래량↑'));
+    expect(baseStoreState.setSortType).toHaveBeenCalledWith('qty-asc');
+  });
+
+  it('이미 활성화된 정렬 버튼을 다시 누르면 none으로 되돌린다', () => {
+    mockedUsePriceSearchStore.mockReturnValue({
+      ...baseStoreState,
+      sortType: 'price-desc',
+    } as any);
+
+    const { getByText } = render(<SearchScreen />);
+    fireEvent.press(getByText('가격↓'));
+    expect(baseStoreState.setSortType).toHaveBeenCalledWith('none');
   });
 });

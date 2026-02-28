@@ -1,90 +1,121 @@
 import { usePriceSearchStore } from '@/src/store/usePriceSearchStore';
-import { fetchAuctionPrices } from '@/src/api/agriPriceApi';
+import {
+  fetchAuctionPrices,
+  fetchWholesaleMarkets,
+} from '@/src/api/agriPriceApi';
 import type { AuctionPriceRow } from '@/src/types/agriPrice';
 
-// API 모듈 mock
 jest.mock('@/src/api/agriPriceApi', () => ({
   fetchAuctionPrices: jest.fn(),
+  fetchWholesaleMarkets: jest.fn(),
 }));
 
 const mockedFetchAuctionPrices = fetchAuctionPrices as jest.MockedFunction<
   typeof fetchAuctionPrices
 >;
+const mockedFetchWholesaleMarkets = fetchWholesaleMarkets as jest.MockedFunction<
+  typeof fetchWholesaleMarkets
+>;
 
-const mockRows: AuctionPriceRow[] = [
-  {
+function makeRow(
+  overrides: Partial<AuctionPriceRow> = {}
+): AuctionPriceRow {
+  return {
     rowNum: 1,
-    tradeDate: '20151120',
-    marketName: '서울강서도매시장',
+    tradeDate: '20260227',
+    marketName: '서울가락',
     productName: '배추',
     bidPrice: 3000,
     quantity: 10,
-  },
-  {
-    rowNum: 2,
-    tradeDate: '20151120',
-    marketName: '서울강서도매시장',
-    productName: '무',
-    bidPrice: 1000,
-    quantity: 20,
-  },
-];
+    ...overrides,
+  };
+}
 
 describe('usePriceSearchStore', () => {
   beforeEach(() => {
-    // 각 테스트 전에 스토어 상태 초기화
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-02-28T09:00:00+09:00'));
+
     usePriceSearchStore.setState({
-      date: '',
-      marketName: '',
       productName: '',
+      region: '전체',
       loading: false,
       error: null,
+      baseItems: [],
       items: [],
       sortType: 'none',
+      effectiveDate: null,
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('region이 비어 있으면 에러를 설정하고 API를 호출하지 않는다', async () => {
+    usePriceSearchStore.setState({
+      region: '',
+      productName: '',
     });
 
-    jest.clearAllMocks();
-  });
-
-  it('조회일자/시장명이 없으면 에러를 설정하고 API를 호출하지 않는다', async () => {
-    // date='', marketName='' 상태 그대로
     await usePriceSearchStore.getState().search();
 
     const state = usePriceSearchStore.getState();
 
-    expect(state.error).toBe('조회일자와 시장명은 필수입니다.');
+    expect(state.error).toBe('지역 정보를 확인할 수 없습니다.');
     expect(state.loading).toBe(false);
+    expect(mockedFetchWholesaleMarkets).not.toHaveBeenCalled();
     expect(mockedFetchAuctionPrices).not.toHaveBeenCalled();
   });
 
-  it('조회일자만 있고 시장명이 없으면 에러를 설정한다', async () => {
-    usePriceSearchStore.getState().setDate('20151120');
-
-    await usePriceSearchStore.getState().search();
-
-    const state = usePriceSearchStore.getState();
-
-    expect(state.error).toBe('조회일자와 시장명은 필수입니다.');
-    expect(mockedFetchAuctionPrices).not.toHaveBeenCalled();
-  });
-
-  it('시장명만 있고 조회일자가 없으면 에러를 설정한다', async () => {
-    usePriceSearchStore.getState().setMarketName('서울강서도매시장');
-
-    await usePriceSearchStore.getState().search();
-
-    const state = usePriceSearchStore.getState();
-
-    expect(state.error).toBe('조회일자와 시장명은 필수입니다.');
-    expect(mockedFetchAuctionPrices).not.toHaveBeenCalled();
-  });
-
-  it('조회 성공 시 items를 저장하고 loading을 false로 종료한다', async () => {
-    mockedFetchAuctionPrices.mockResolvedValue(mockRows);
+  it('선택한 지역의 시장코드를 찾지 못하면 지역별 에러를 설정한다', async () => {
+    mockedFetchWholesaleMarkets.mockResolvedValue([]);
 
     usePriceSearchStore.setState({
-      date: '20151120',
-      marketName: '서울강서도매시장',
+      region: '부산',
+    });
+
+    await usePriceSearchStore.getState().search();
+
+    const state = usePriceSearchStore.getState();
+
+    expect(mockedFetchWholesaleMarkets).toHaveBeenCalled();
+    expect(state.loading).toBe(false);
+    expect(state.items).toEqual([]);
+    expect(state.baseItems).toEqual([]);
+    expect(state.error).toBe(
+      '선택한 지역(부산)에서 사용 가능한 시장코드를 찾지 못했습니다.'
+    );
+    expect(state.effectiveDate).toBeNull();
+    expect(mockedFetchAuctionPrices).not.toHaveBeenCalled();
+  });
+
+  it('최근 날짜에 데이터가 없으면 과거 날짜로 fallback 후 effectiveDate를 설정한다', async () => {
+    mockedFetchWholesaleMarkets.mockResolvedValue([
+      { codeId: '110001', codeName: '서울가락' },
+    ]);
+
+    mockedFetchAuctionPrices.mockImplementation(async ({ date, marketName }) => {
+      if (marketName !== '110001') return [];
+
+      if (date === '20260228') return [];
+      if (date === '20260227') {
+        return [
+          makeRow({
+            tradeDate: '20260227',
+            marketName: '서울가락',
+            productName: '배추',
+            bidPrice: 3200,
+            quantity: 12,
+          }),
+        ];
+      }
+      return [];
+    });
+
+    usePriceSearchStore.setState({
+      region: '서울',
       productName: '',
       sortType: 'none',
     });
@@ -93,27 +124,99 @@ describe('usePriceSearchStore', () => {
 
     const state = usePriceSearchStore.getState();
 
-    expect(mockedFetchAuctionPrices).toHaveBeenCalledWith({
-      date: '20151120',
-      marketName: '서울강서도매시장',
-      productName: '',
-      startIndex: 1,
-  endIndex: 50,
-    });
-
-    expect(state.loading).toBe(false);
     expect(state.error).toBeNull();
-    expect(state.items).toHaveLength(2);
-    expect(state.items[0].productName).toBe('배추');
+    expect(state.loading).toBe(false);
+    expect(state.effectiveDate).toBe('20260227');
+    expect(state.baseItems).toHaveLength(1);
+    expect(state.items).toHaveLength(1);
+
+    expect(mockedFetchAuctionPrices).toHaveBeenCalledWith({
+      date: '20260228',
+      marketName: '110001',
+      startIndex: 1,
+      endIndex: 300,
+    });
+    expect(mockedFetchAuctionPrices).toHaveBeenCalledWith({
+      date: '20260227',
+      marketName: '110001',
+      startIndex: 1,
+      endIndex: 300,
+    });
   });
 
-  it('조회 성공 시 sortType이 price-asc이면 정렬된 결과를 저장한다', async () => {
-    mockedFetchAuctionPrices.mockResolvedValue(mockRows);
+  it('품목명 필터 + 집계 + 정렬(sortType)을 적용한다', async () => {
+    mockedFetchWholesaleMarkets.mockResolvedValue([
+      { codeId: '110001', codeName: '서울가락' },
+      { codeId: '110008', codeName: '서울강서' },
+      { codeId: '220001', codeName: '대구북부' },
+    ]);
+
+    mockedFetchAuctionPrices.mockImplementation(async ({ marketName }) => {
+      if (marketName === '110001') {
+        return [
+          makeRow({
+            rowNum: 1,
+            tradeDate: '20260228',
+            marketName: '서울가락',
+            productName: '배추',
+            speciesName: '월동',
+            unitName: '10kg',
+            qualityName: '특',
+            bidPrice: 3000,
+            quantity: 10,
+          }),
+          makeRow({
+            rowNum: 2,
+            tradeDate: '20260228',
+            marketName: '서울가락',
+            productName: '무',
+            speciesName: '일반',
+            unitName: '20kg',
+            qualityName: '상',
+            bidPrice: 1000,
+            quantity: 20,
+          }),
+        ];
+      }
+
+      if (marketName === '110008') {
+        return [
+          makeRow({
+            rowNum: 3,
+            tradeDate: '20260228',
+            marketName: '서울강서',
+            productName: '배추',
+            speciesName: '월동',
+            unitName: '10kg',
+            qualityName: '특',
+            bidPrice: 5000,
+            quantity: 30,
+          }),
+        ];
+      }
+
+      if (marketName === '220001') {
+        return [
+          makeRow({
+            rowNum: 4,
+            tradeDate: '20260228',
+            marketName: '대구북부',
+            productName: '토마토',
+            speciesName: '완숙',
+            unitName: '5kg',
+            qualityName: '상',
+            bidPrice: 7000,
+            quantity: 5,
+          }),
+        ];
+      }
+
+      return [];
+    });
 
     usePriceSearchStore.setState({
-      date: '20151120',
-      marketName: '서울강서도매시장',
-      productName: '',
+      region: '전체',
+      productName: '배추',
       sortType: 'price-asc',
     });
 
@@ -121,16 +224,90 @@ describe('usePriceSearchStore', () => {
 
     const state = usePriceSearchStore.getState();
 
-    expect(state.items.map((x) => x.bidPrice)).toEqual([1000, 3000]);
+    expect(state.error).toBeNull();
+    expect(state.loading).toBe(false);
+    expect(state.effectiveDate).toBe('20260228');
+
+    // productName='배추' 필터 후 같은 상품(배추|월동|10kg|특)은 집계되어 1건이 된다.
+    expect(state.baseItems).toHaveLength(1);
+    expect(state.items).toHaveLength(1);
+
+    const aggregated = state.items[0];
+
+    // 가중평균: (3000*10 + 5000*30) / 40 = 4500
+    expect(aggregated.productName).toBe('배추');
+    expect(aggregated.bidPrice).toBe(4500);
+    expect(aggregated.quantity).toBe(40);
+    expect(aggregated.marketName).toContain('서울');
+    expect(aggregated.marketName).toContain('외 1곳');
   });
 
-  it('조회 실패 시 에러 메시지를 설정하고 loading을 false로 종료한다', async () => {
-    mockedFetchAuctionPrices.mockRejectedValue(new Error('Network Error'));
+  it('일부 시장 API가 실패해도 성공한 결과만 반영한다', async () => {
+    mockedFetchWholesaleMarkets.mockResolvedValue([
+      { codeId: '110001', codeName: '서울가락' },
+      { codeId: '110008', codeName: '서울강서' },
+      { codeId: '230001', codeName: '인천남촌' },
+      { codeId: '250001', codeName: '대전오정' },
+      { codeId: '311201', codeName: '구리' },
+    ]);
+
+    mockedFetchAuctionPrices.mockImplementation(async ({ marketName, date }) => {
+      if (date !== '20260228') return [];
+
+      if (marketName === '110008') {
+        throw new Error('Network Error');
+      }
+
+      if (marketName === '110001') {
+        return [
+          makeRow({
+            rowNum: 1,
+            tradeDate: '20260228',
+            marketName: '서울가락',
+            productName: '배추',
+            bidPrice: 3000,
+            quantity: 10,
+          }),
+        ];
+      }
+
+      if (marketName === '230001') {
+        return [
+          makeRow({
+            rowNum: 2,
+            tradeDate: '20260228',
+            marketName: '인천남촌',
+            productName: '무',
+            bidPrice: 1800,
+            quantity: 15,
+          }),
+        ];
+      }
+
+      if (marketName === '250001') {
+        return [];
+      }
+
+      if (marketName === '311201') {
+        return [
+          makeRow({
+            rowNum: 3,
+            tradeDate: '20260228',
+            marketName: '구리',
+            productName: '토마토',
+            bidPrice: 6500,
+            quantity: 8,
+          }),
+        ];
+      }
+
+      return [];
+    });
 
     usePriceSearchStore.setState({
-      date: '20151120',
-      marketName: '서울강서도매시장',
-      productName: '배추',
+      region: '전체',
+      productName: '',
+      sortType: 'none',
     });
 
     await usePriceSearchStore.getState().search();
@@ -138,32 +315,65 @@ describe('usePriceSearchStore', () => {
     const state = usePriceSearchStore.getState();
 
     expect(state.loading).toBe(false);
-    expect(state.error).toBe(
-      '데이터 조회 중 오류가 발생했습니다. 네트워크/API 상태를 확인해주세요.'
+    expect(state.error).toBeNull();
+    expect(state.effectiveDate).toBe('20260228');
+
+    // 실패한 1개 시장(110008)은 제외하고 성공분만 반영
+    expect(state.items.length).toBeGreaterThan(0);
+
+    const productNames = state.items.map((item) => item.productName);
+    expect(productNames).toEqual(
+      expect.arrayContaining(['배추', '무', '토마토'])
     );
   });
 
-  it('기존 에러가 있어도 재조회 시작 시 error를 초기화한다', async () => {
-    // 1차: 실패시켜 에러 만들기
-    mockedFetchAuctionPrices.mockRejectedValueOnce(new Error('fail'));
+  it('최근 60일 내 모든 조회 결과가 0건이면 안내 메시지를 설정한다', async () => {
+    mockedFetchWholesaleMarkets.mockResolvedValue([
+      { codeId: '110001', codeName: '서울가락' },
+    ]);
+
+    mockedFetchAuctionPrices.mockResolvedValue([]);
 
     usePriceSearchStore.setState({
-      date: '20151120',
-      marketName: '서울강서도매시장',
+      region: '서울',
+      productName: '',
+      sortType: 'none',
     });
-
-    await usePriceSearchStore.getState().search();
-    expect(usePriceSearchStore.getState().error).toBeTruthy();
-
-    // 2차: 성공 응답
-    mockedFetchAuctionPrices.mockResolvedValueOnce(mockRows);
 
     await usePriceSearchStore.getState().search();
 
     const state = usePriceSearchStore.getState();
 
-    expect(state.error).toBeNull();
-    expect(state.items).toHaveLength(2);
     expect(state.loading).toBe(false);
+    expect(state.baseItems).toEqual([]);
+    expect(state.items).toEqual([]);
+    expect(state.error).toBe(
+      '최근 60일 내 조회 결과 0건입니다. (데이터 미집계/해당 기간 거래 없음 가능)'
+    );
+    expect(state.effectiveDate).toBe('20260228');
+  });
+
+  it('setSortType 호출 시 baseItems 기준으로 재정렬한다', () => {
+    usePriceSearchStore.setState({
+      baseItems: [
+        makeRow({ productName: '배추', bidPrice: 3000, quantity: 10 }),
+        makeRow({ productName: '무', bidPrice: 1000, quantity: 30 }),
+        makeRow({ productName: '토마토', bidPrice: 5000, quantity: 5 }),
+      ],
+      items: [
+        makeRow({ productName: '배추', bidPrice: 3000, quantity: 10 }),
+        makeRow({ productName: '무', bidPrice: 1000, quantity: 30 }),
+        makeRow({ productName: '토마토', bidPrice: 5000, quantity: 5 }),
+      ],
+      sortType: 'none',
+    });
+
+    usePriceSearchStore.getState().setSortType('price-asc');
+
+    const state = usePriceSearchStore.getState();
+
+    expect(state.sortType).toBe('price-asc');
+    expect(state.items.map((x) => x.bidPrice)).toEqual([1000, 3000, 5000]);
+    expect(state.items.map((x) => x.productName)).toEqual(['무', '배추', '토마토']);
   });
 });
