@@ -43,8 +43,6 @@ function minusDays(yyyymmdd: string, days: number) {
   return dateToYyyymmdd(dt);
 }
 
-let MARKET_CACHE: { date: string; markets: WholesaleMarket[] } | null = null;
-
 function normalizeMarketName(name: string) {
   return (name || '')
     .replace(/\s+/g, '')
@@ -90,7 +88,6 @@ async function getMarketCodesByRegion(region: string, baseDate: string): Promise
 
     if (!markets.length) continue;
 
-    MARKET_CACHE = { date: d, markets };
 
     const codes =
       region === '전체'
